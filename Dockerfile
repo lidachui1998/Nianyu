@@ -1,8 +1,8 @@
-# 构建前端
+# 构建前端（需安装 devDependencies：vite、tailwind 等）
 FROM node:20-alpine AS client
 WORKDIR /app/client
 COPY client/package.json client/package-lock.json* ./
-RUN npm ci --omit=dev 2>/dev/null || npm install --omit=dev
+RUN npm ci 2>/dev/null || npm install
 COPY client/ ./
 RUN npm run build
 
