@@ -97,23 +97,32 @@ npm run build:client
 # 然后使用 node 运行 server，或见下方 Docker
 ```
 
-## Docker 部署（飞牛 NAS）
+## Docker 镜像与自动构建
 
-1. 构建并启动：
+- **镜像地址**：[ghcr.io/lidachui1998/nianyu](https://github.com/lidachui1998/Nianyu/pkgs/container/nianyu)（GitHub Container Registry）
+- **自动构建**：推送代码到 `main` 分支或打 `v*` 标签时，[GitHub Actions](.github/workflows/docker-publish.yml) 会自动构建并推送镜像，无需本地 build。
+
+## Docker 部署（飞牛 NAS / 服务器）
+
+使用仓库内的 `docker-compose.yml`，直接拉取镜像部署，无需本地构建：
 
 ```bash
+# 克隆仓库（仅需 docker-compose.yml，也可单独下载此文件）
+git clone https://github.com/lidachui1998/Nianyu.git && cd Nianyu
+
+# 拉取镜像并启动
 docker-compose up -d
 ```
 
-2. 访问：`http://<NAS 或本机 IP>:5174`
+访问：`http://<本机或 NAS IP>:5174`。
 
-3. **启用网易云歌单 / 喜欢**：  
-   - 方式一：自建网易云 API，在 `docker-compose.yml` 中配置 `netease-api` 服务，并设置：
-     ```yaml
-     environment:
-       - NETEASE_API=http://netease-api:3000
-     ```
-   - 方式二：使用已有的网易云 API 地址，设置 `NETEASE_API=https://你的网易云API地址`
+**网易云 API 配置**（在 `docker-compose.yml` 的 `nianyu` 服务下修改 `environment`）：
+
+| 方式 | 说明 |
+|------|------|
+| **默认** | 使用 compose 内置的 `netease-api` 服务，无需改配置，启动即用。 |
+| **自建/第三方** | 将 `NETEASE_API` 改为你的网易云 API 地址（如 `https://your-api.com`），并注释掉 `depends_on` 与下方的 `netease-api` 服务。 |
+| **不启用** | 删除或留空 `NETEASE_API`，并注释掉 `depends_on` 与 `netease-api` 服务。 |
 
 ## 环境变量
 

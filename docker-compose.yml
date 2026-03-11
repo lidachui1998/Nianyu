@@ -1,23 +1,32 @@
+# 使用 GitHub Actions 自动构建的镜像，无需本地 build
+# 镜像: ghcr.io/lidachui1998/nianyu (推送 main 或打 tag 后自动发布)
+# 首次使用: docker pull ghcr.io/lidachui1998/nianyu:latest
+
 version: "3.8"
 
 services:
   nianyu:
-    build: .
-    image: nianyu:latest
+    image: ghcr.io/lidachui1998/nianyu:latest
     container_name: nianyu
     ports:
       - "5174:5174"
     environment:
       - PORT=5174
-      - NETEASE_API=http://netease-api:3000
-      - SESSION_SECRET=nianyu-session-secret-change-me
+      # 网易云 API：二选一
+      # 1) 使用下方 netease-api 服务（默认）
+      - NETEASE_API=http://netease-api:13006
+      # 2) 使用自建/第三方：改为你的地址并注释掉下方 netease-api 与 depends_on
+      # - NETEASE_API=https://your-netease-api.example.com
+      - SESSION_SECRET=23661d8ffb4f40e6a86492c881c1b701
     depends_on:
       - netease-api
     restart: unless-stopped
 
+  # 内置网易云 API（与 Binaryify/NeteaseCloudMusicApi 兼容）
+  # 若改用外部 API，在 nianyu 的 environment 中设置 NETEASE_API 并注释掉本服务与 depends_on
   netease-api:
     image: moefurina/ncm-api:latest
     container_name: netease-api
     ports:
-      - "3000:3000"
+      - "13006:3000"
     restart: unless-stopped
