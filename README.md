@@ -2,6 +2,10 @@
 
 基于 [GD Studio 音乐 API](https://music-api.gdstudio.xyz/api.php) 与网易云 API 的音乐网站，支持 Docker 部署（含飞牛 NAS）。
 
+## 效果图
+
+![Nianyu 效果图](docs/screenshot.png)
+
 ---
 
 ## 功能说明
