@@ -10,6 +10,9 @@ services:
     container_name: nianyu
     ports:
       - "13007:5174"
+    volumes:
+      # 持久化：数据存放在部署目录下的 ./data，重启/重建容器不丢失
+      - ./data:/app/data
     environment:
       - PORT=5174
       # 网易云 API：二选一

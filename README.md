@@ -116,6 +116,8 @@ docker-compose up -d
 
 访问：`http://<本机或 NAS IP>:5174`。
 
+**数据持久化**：`docker-compose.yml` 已将部署目录下的 `./data` 挂载到容器内 `/app/data`，歌单、同步记录、用户/网易云登录状态会保存在当前目录的 `data` 文件夹，重启或重建容器不会丢失。
+
 **网易云 API 配置**（在 `docker-compose.yml` 的 `nianyu` 服务下修改 `environment`）：
 
 | 方式 | 说明 |
