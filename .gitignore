@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+client/node_modules/
+
+# Build output
+client/dist/
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+
+# User data (playlists, sync, login state - do not commit)
+data/playlists.json
+data/sync.json
+data/users.json
+data/netease-users.json
+
+# Logs & misc
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

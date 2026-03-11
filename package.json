@@ -1,0 +1,26 @@
+{
+  "name": "nianyu",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "node server/index.js",
+    "dev:client": "cd client && npm run dev",
+    "build": "npm run build:client && node server/index.js",
+    "build:client": "cd client && npm run build",
+    "start": "node server/index.js",
+    "docker:build": "docker build -t nianyu .",
+    "docker:up": "docker-compose up -d"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "express-session": "^1.18.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
