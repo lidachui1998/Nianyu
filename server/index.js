@@ -38,12 +38,18 @@ function ensureDir(filePath) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
+const GD_REQUEST_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  Accept: 'application/json, text/plain, */*',
+  Referer: 'https://music.gdstudio.xyz/',
+};
+
 async function proxyGD(params) {
   const url = new URL(GD_API);
   Object.entries(params).forEach(([k, v]) => {
     if (v != null && v !== '') url.searchParams.set(k, String(v));
   });
-  const res = await fetch(url.toString(), { method: 'GET' });
+  const res = await fetch(url.toString(), { method: 'GET', headers: GD_REQUEST_HEADERS });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg = body?.msg || body?.error || body?.message || res.statusText || `HTTP ${res.status}`;
