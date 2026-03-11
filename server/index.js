@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
@@ -12,7 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const GD_API = process.env.GD_API || 'https://music-api.gdstudio.xyz/api.php';
 const NETEASE_API = process.env.NETEASE_API || 'https://netease-api.bjca.xyz';
-const PORT = parseInt(process.env.PORT || '5174', 10);
+const PORT = parseInt(process.env.PORT || '13007', 10);
 
 const PLAYLISTS_FILE = path.join(__dirname, '..', 'data', 'playlists.json');
 const SYNC_FILE = path.join(__dirname, '..', 'data', 'sync.json');
@@ -44,7 +44,12 @@ async function proxyGD(params) {
     if (v != null && v !== '') url.searchParams.set(k, String(v));
   });
   const res = await fetch(url.toString(), { method: 'GET' });
-  return res.json().catch(() => ({}));
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = body?.msg || body?.error || body?.message || res.statusText || `HTTP ${res.status}`;
+    throw new Error(`GD API: ${msg}`);
+  }
+  return body;
 }
 
 async function proxyNetease(method, pathname, body = null, cookie = null) {
@@ -292,13 +297,18 @@ app.get('/api/search', async (req, res) => {
         const out = normalizeSearchResult(raw);
         return res.json({ data: out.data, source: out.source });
       }
+      if (source === sourcesToTry[0] && raw && (raw.msg || raw.error || raw.message)) {
+        lastError = raw.msg || raw.error || raw.message;
+      }
     } catch (e) {
       lastError = e.message;
       console.warn(`[search] source=${source} failed:`, e.message);
     }
   }
 
-  return res.json({ data: [], error: lastError || 'Search failed on all sources' });
+  const errMsg = lastError || 'Search failed on all sources';
+  console.warn('[search] all sources failed. lastError:', errMsg);
+  return res.json({ data: [], error: errMsg });
 });
 
 app.get('/api/url', async (req, res) => {

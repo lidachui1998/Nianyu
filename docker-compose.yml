@@ -8,19 +8,15 @@ services:
   nianyu:
     image: ghcr.io/lidachui1998/nianyu:latest
     container_name: nianyu
-    ports:
-      - "13007:5174"
+    network_mode: host
     volumes:
       # 持久化：数据存放在部署目录下的 ./data，重启/重建容器不丢失
       - ./data:/app/data
     environment:
-      - PORT=5174
-      # 网易云 API：二选一
-      # 1) 使用下方 netease-api 服务（默认）
-      - NETEASE_API=http://netease-api:13006
-      # 2) 使用自建/第三方：改为你的地址并注释掉下方 netease-api 与 depends_on
-      # - NETEASE_API=https://your-netease-api.example.com
-      - SESSION_SECRET=23661d8ffb4f40e6a86492c881c1b701
+      - PORT=13007
+      # 网易云 API：从 .env 或环境变量读取，不写死。例如 .env 中写 NETEASE_API=http://127.0.0.1:13006（用下方 netease-api 时）
+      - NETEASE_API=${NETEASE_API:-}
+      - SESSION_SECRET=${SESSION_SECRET:-nianyu-session-secret-change-me}
     depends_on:
       - netease-api
     restart: unless-stopped

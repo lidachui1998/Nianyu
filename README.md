@@ -84,11 +84,11 @@
 npm install
 cd client && npm install && cd ..
 
-# 同时启动后端(5174)与前端(5173，代理 /api 到后端)
+# 同时启动后端(13007)与前端(5173，代理 /api 到后端)
 npm run dev
 ```
 
-访问 http://localhost:5173 。后端默认使用 GD API，网易云需设置环境变量 `NETEASE_API`。
+访问 http://localhost:5173 。后端默认监听 13007，网易云需设置环境变量 `NETEASE_API`。
 
 ## 生产构建
 
@@ -114,7 +114,7 @@ git clone https://github.com/lidachui1998/Nianyu.git && cd Nianyu
 docker-compose up -d
 ```
 
-访问：`http://<本机或 NAS IP>:5174`。
+访问：`http://<本机或 NAS IP>:13007`。
 
 **数据持久化**：`docker-compose.yml` 已将部署目录下的 `./data` 挂载到容器内 `/app/data`，歌单、同步记录、用户/网易云登录状态会保存在当前目录的 `data` 文件夹，重启或重建容器不会丢失。
 
@@ -126,11 +126,13 @@ docker-compose up -d
 | **自建/第三方** | 将 `NETEASE_API` 改为你的网易云 API 地址（如 `https://your-api.com`），并注释掉 `depends_on` 与下方的 `netease-api` 服务。 |
 | **不启用** | 删除或留空 `NETEASE_API`，并注释掉 `depends_on` 与 `netease-api` 服务。 |
 
+**Docker 部署后搜索不到歌曲**：搜索依赖容器访问外网 GD API（`music-api.gdstudio.xyz`）。若返回 `Search failed on all sources` 或接口报错，可：① 看容器日志 `docker logs nianyu`，确认是否有 GD API 连接/解析错误；② 在 compose 中已为 `nianyu` 配置 `dns: 114.114.114.114, 8.8.8.8`，保证解析正常；③ 若 NAS/路由器限制容器出网，需放行或改用宿主机网络/代理；④ 可通过环境变量 `GD_API` 更换为可用的 GD API 地址（若有自建或镜像）。
+
 ## 环境变量
 
 | 变量 | 说明 | 默认 |
 |------|------|------|
-| `PORT` | 服务端口 | 5174 |
+| `PORT` | 服务端口 | 13007 |
 | `GD_API` | GD 音乐 API 地址 | https://music-api.gdstudio.xyz/api.php |
 | `NETEASE_API` | 网易云 API 根地址（自建或可用） | 空（不配置则歌单/喜欢不可用） |
 | `SESSION_SECRET` | 会话加密密钥，生产请修改 | 内置默认值 |
