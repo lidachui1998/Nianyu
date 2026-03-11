@@ -9,7 +9,7 @@ services:
     image: ghcr.io/lidachui1998/nianyu:latest
     container_name: nianyu
     ports:
-      - "5174:5174"
+      - "13007:5174"
     environment:
       - PORT=5174
       # 网易云 API：二选一
