@@ -578,6 +578,10 @@ select {
   padding-bottom: 12px;
 }
 
+.queue-row {
+  height: 40px;
+}
+
 @keyframes toastIn {
   from {
     opacity: 0;

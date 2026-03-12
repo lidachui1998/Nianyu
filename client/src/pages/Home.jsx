@@ -12,6 +12,9 @@ const SOURCE_OPTIONS = [
   { value: 'joox', label: 'JOOX' },
 ];
 
+const QUEUE_ROW_HEIGHT = 40;
+const QUEUE_OVERSCAN = 6;
+
 export default function Home() {
   const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState([]);
@@ -42,7 +45,10 @@ export default function Home() {
   const [recentSelectedIds, setRecentSelectedIds] = useState(new Set());
   const [recentPos, setRecentPos] = useState(null);
   const [canDragRecent, setCanDragRecent] = useState(true);
+  const [queueScrollTop, setQueueScrollTop] = useState(0);
+  const [queueViewportHeight, setQueueViewportHeight] = useState(0);
   const recentFloatRef = useRef(null);
+  const queueViewportRef = useRef(null);
   const recentDragRef = useRef({ active: false, startX: 0, startY: 0, originX: 0, originY: 0 });
   const recentDragRafRef = useRef(null);
   const recentDragNextRef = useRef(null);
@@ -102,6 +108,16 @@ export default function Home() {
   useEffect(() => {
     if (recentDrawerOpen && !canDragRecent) setRecentPos(null);
   }, [recentDrawerOpen, canDragRecent]);
+
+  useEffect(() => {
+    const el = queueViewportRef.current;
+    if (!el) return;
+    const update = () => setQueueViewportHeight(el.clientHeight || 0);
+    update();
+    const ro = new ResizeObserver(() => update());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => () => {
     if (recentDragRafRef.current) cancelAnimationFrame(recentDragRafRef.current);
@@ -233,9 +249,17 @@ export default function Home() {
   const lyricLines = parseLrc(lyric?.lyric || '');
   const scrollToCurrent = () => {
     if (!currentTrack?.id) return;
+    const idx = queueList.findIndex((t) => t?.id === currentTrack.id);
     const el = queueItemRefs.current[currentTrack.id];
     if (el && typeof el.scrollIntoView === 'function') {
       el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return;
+    }
+    if (idx >= 0 && queueViewportRef.current) {
+      queueViewportRef.current.scrollTo({
+        top: idx * QUEUE_ROW_HEIGHT,
+        behavior: 'smooth',
+      });
     }
   };
 
@@ -590,31 +614,59 @@ export default function Home() {
             </div>
           )}
 
-          {!queueCollapsed && (
-            <ul className="max-h-44 space-y-1 overflow-y-auto">
-              {queueList.map((track, idx) => (
-                <li
-                  key={`${track.id}-q-${idx}`}
-                  ref={(el) => {
-                    if (el) queueItemRefs.current[track.id] = el;
-                    else delete queueItemRefs.current[track.id];
-                  }}
-                  draggable
-                  onDragStart={() => handleDragStart(idx)}
-                  onDragOver={handleDragOver}
-                  onDrop={() => handleDrop(idx)}
-                  className={`flex items-center gap-2 rounded-lg px-2 py-1.5 hover:border hover:border-blue-200 ${currentTrack?.id === track.id ? 'border border-blue-200 bg-blue-50' : 'bg-slate-50'}`}
-                >
-                  <span className="cursor-grab text-xs text-slate-400">拖</span>
-                  <span className="w-5 text-xs text-slate-400">{idx + 1}</span>
-                  <button type="button" onClick={() => play(track)} className="min-w-0 flex-1 text-left">
-                    <p className="truncate text-sm text-slate-700">{track.name}</p>
-                  </button>
-                  <button type="button" onClick={() => removeFromQueue(track.id)} className="text-xs text-rose-500 hover:underline">移除</button>
-                </li>
-              ))}
-            </ul>
-          )}
+        {!queueCollapsed && (
+          <div
+            ref={queueViewportRef}
+            onScroll={(e) => setQueueScrollTop(e.currentTarget.scrollTop)}
+            className="max-h-44 overflow-y-auto"
+          >
+            <div style={{ height: queueList.length * QUEUE_ROW_HEIGHT, position: 'relative' }}>
+              {(() => {
+                const startIndex = Math.max(0, Math.floor(queueScrollTop / QUEUE_ROW_HEIGHT) - QUEUE_OVERSCAN);
+                const endIndex = Math.min(
+                  queueList.length,
+                  Math.ceil((queueScrollTop + (queueViewportHeight || 0)) / QUEUE_ROW_HEIGHT) + QUEUE_OVERSCAN,
+                );
+                return (
+                  <ul
+                    className="space-y-1"
+                    style={{
+                      position: 'absolute',
+                      top: startIndex * QUEUE_ROW_HEIGHT,
+                      left: 0,
+                      right: 0,
+                    }}
+                  >
+                    {queueList.slice(startIndex, endIndex).map((track, offset) => {
+                      const idx = startIndex + offset;
+                      return (
+                        <li
+                          key={`${track.id}-q-${idx}`}
+                          ref={(el) => {
+                            if (el) queueItemRefs.current[track.id] = el;
+                            else delete queueItemRefs.current[track.id];
+                          }}
+                          draggable
+                          onDragStart={() => handleDragStart(idx)}
+                          onDragOver={handleDragOver}
+                          onDrop={() => handleDrop(idx)}
+                          className={`queue-row flex items-center gap-2 rounded-lg px-2 py-1.5 hover:border hover:border-blue-200 ${currentTrack?.id === track.id ? 'border border-blue-200 bg-blue-50' : 'bg-slate-50'}`}
+                        >
+                          <span className="cursor-grab text-xs text-slate-400">拖</span>
+                          <span className="w-5 text-xs text-slate-400">{idx + 1}</span>
+                          <button type="button" onClick={() => play(track)} className="min-w-0 flex-1 text-left">
+                            <p className="truncate text-sm text-slate-700">{track.name}</p>
+                          </button>
+                          <button type="button" onClick={() => removeFromQueue(track.id)} className="text-xs text-rose-500 hover:underline">移除</button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                );
+              })()}
+            </div>
+          </div>
+        )}
         </div>
 
       </section>
