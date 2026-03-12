@@ -19,7 +19,7 @@ services:
       # Force IPv4 first if your NAS has broken IPv6 connectivity.
       - NODE_OPTIONS=--dns-result-order=ipv4first
       # 网易云 API：从 .env 或环境变量读取，不写死。例如 .env 中写 NETEASE_API=http://127.0.0.1:13006（用下方 netease-api 时）
-      - NETEASE_API=${NETEASE_API:-}
+      - NETEASE_API=${NETEASE_API:-http://127.0.0.1:13006}
       - SESSION_SECRET=${SESSION_SECRET:-nianyu-session-secret-change-me}
     # If DNS resolution fails on NAS, uncomment and use public DNS
     # dns:
