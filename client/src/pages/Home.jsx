@@ -41,8 +41,11 @@ export default function Home() {
   const [recentSearch, setRecentSearch] = useState('');
   const [recentSelectedIds, setRecentSelectedIds] = useState(new Set());
   const [recentPos, setRecentPos] = useState(null);
+  const [canDragRecent, setCanDragRecent] = useState(true);
   const recentFloatRef = useRef(null);
   const recentDragRef = useRef({ active: false, startX: 0, startY: 0, originX: 0, originY: 0 });
+  const recentDragRafRef = useRef(null);
+  const recentDragNextRef = useRef(null);
 
   const {
     play,
@@ -83,6 +86,26 @@ export default function Home() {
       setDailyRecs(Array.isArray(list) ? list.slice(0, 6) : []);
     }).catch(() => setDailyRecs([]));
   }, [neteaseUser]);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 720px)');
+    const update = () => setCanDragRecent(!mq.matches);
+    update();
+    if (mq.addEventListener) mq.addEventListener('change', update);
+    else mq.addListener(update);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', update);
+      else mq.removeListener(update);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (recentDrawerOpen && !canDragRecent) setRecentPos(null);
+  }, [recentDrawerOpen, canDragRecent]);
+
+  useEffect(() => () => {
+    if (recentDragRafRef.current) cancelAnimationFrame(recentDragRafRef.current);
+  }, []);
 
   const doSearch = async (page = 1, append = false) => {
     if (!keyword.trim()) return;
@@ -149,6 +172,7 @@ export default function Home() {
   const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 
   const handleRecentDragStart = (e) => {
+    if (!canDragRecent) return;
     const target = recentFloatRef.current;
     if (!target) return;
     const rect = target.getBoundingClientRect();
@@ -172,9 +196,14 @@ export default function Home() {
     const nextY = drag.originY + (e.clientY - drag.startY);
     const maxX = window.innerWidth - rect.width - 12;
     const maxY = window.innerHeight - rect.height - 88;
-    setRecentPos({
+    recentDragNextRef.current = {
       x: clamp(nextX, 12, Math.max(12, maxX)),
       y: clamp(nextY, 12, Math.max(12, maxY)),
+    };
+    if (recentDragRafRef.current) return;
+    recentDragRafRef.current = requestAnimationFrame(() => {
+      recentDragRafRef.current = null;
+      if (recentDragNextRef.current) setRecentPos(recentDragNextRef.current);
     });
   };
 
@@ -184,6 +213,10 @@ export default function Home() {
     recentDragRef.current.active = false;
     const target = recentFloatRef.current;
     target?.releasePointerCapture?.(e.pointerId);
+    if (recentDragRafRef.current) {
+      cancelAnimationFrame(recentDragRafRef.current);
+      recentDragRafRef.current = null;
+    }
   };
 
   const selectedTracks = useMemo(() => results.filter((t) => selectedIds.has(t.id)), [results, selectedIds]);

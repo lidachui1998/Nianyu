@@ -48,6 +48,9 @@ export default function PlayerBar() {
 
   const audio = useRef(null);
   const seekRef = useRef(null);
+  const hoverRafRef = useRef(null);
+  const hoverNextRef = useRef(null);
+  const lastTimeUpdateRef = useRef(0);
   const [qualityOpen, setQualityOpen] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekTime, setSeekTime] = useState(0);
@@ -87,7 +90,11 @@ export default function PlayerBar() {
     if (!el) return;
 
     const onTimeUpdate = () => {
-      if (!isSeeking) setCurrentTime(el.currentTime);
+      if (isSeeking) return;
+      const now = performance.now();
+      if (now - lastTimeUpdateRef.current < 200) return;
+      lastTimeUpdateRef.current = now;
+      setCurrentTime(el.currentTime);
     };
     const onDurationChange = () => setDuration(el.duration);
     const onEnded = () => {
@@ -121,6 +128,10 @@ export default function PlayerBar() {
     };
   }, [isSeeking, setCurrentTime, setDuration, setIsPlaying, setPlayError, handleTrackEnded]);
 
+  useEffect(() => () => {
+    if (hoverRafRef.current) cancelAnimationFrame(hoverRafRef.current);
+  }, []);
+
   const handleSeekChange = (value) => {
     const el = audio.current;
     const nextTime = Number(value);
@@ -148,9 +159,16 @@ export default function PlayerBar() {
     const rect = el.getBoundingClientRect();
     const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
     const time = ratio * duration;
-    setHoverTime(time);
-    setHoverX(ratio * 100);
-    setShowHover(true);
+    hoverNextRef.current = { time, x: ratio * 100 };
+    if (hoverRafRef.current) return;
+    hoverRafRef.current = requestAnimationFrame(() => {
+      hoverRafRef.current = null;
+      const next = hoverNextRef.current;
+      if (!next) return;
+      setHoverTime(next.time);
+      setHoverX(next.x);
+      setShowHover(true);
+    });
   };
 
   const handleDownload = () => {
