@@ -37,7 +37,12 @@ export default function Home() {
   const [homePlaylistLoading, setHomePlaylistLoading] = useState(false);
   const [homePlaylistSearch, setHomePlaylistSearch] = useState('');
   const [queueCollapsed, setQueueCollapsed] = useState(false);
-  const [recentCollapsed, setRecentCollapsed] = useState(false);
+  const [recentDrawerOpen, setRecentDrawerOpen] = useState(false);
+  const [recentSearch, setRecentSearch] = useState('');
+  const [recentSelectedIds, setRecentSelectedIds] = useState(new Set());
+  const [recentPos, setRecentPos] = useState(null);
+  const recentFloatRef = useRef(null);
+  const recentDragRef = useRef({ active: false, startX: 0, startY: 0, originX: 0, originY: 0 });
 
   const {
     play,
@@ -132,8 +137,65 @@ export default function Home() {
       return next;
     });
   };
+  const toggleRecentSelect = (id) => {
+    setRecentSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+
+  const handleRecentDragStart = (e) => {
+    const target = recentFloatRef.current;
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    recentDragRef.current = {
+      active: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: rect.left,
+      originY: rect.top,
+    };
+    target.setPointerCapture?.(e.pointerId);
+  };
+
+  const handleRecentDragMove = (e) => {
+    const drag = recentDragRef.current;
+    if (!drag.active) return;
+    const target = recentFloatRef.current;
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    const nextX = drag.originX + (e.clientX - drag.startX);
+    const nextY = drag.originY + (e.clientY - drag.startY);
+    const maxX = window.innerWidth - rect.width - 12;
+    const maxY = window.innerHeight - rect.height - 88;
+    setRecentPos({
+      x: clamp(nextX, 12, Math.max(12, maxX)),
+      y: clamp(nextY, 12, Math.max(12, maxY)),
+    });
+  };
+
+  const handleRecentDragEnd = (e) => {
+    const drag = recentDragRef.current;
+    if (!drag.active) return;
+    recentDragRef.current.active = false;
+    const target = recentFloatRef.current;
+    target?.releasePointerCapture?.(e.pointerId);
+  };
 
   const selectedTracks = useMemo(() => results.filter((t) => selectedIds.has(t.id)), [results, selectedIds]);
+  const recentFiltered = useMemo(() => {
+    if (!recentSearch.trim()) return recentTracks || [];
+    const key = recentSearch.trim().toLowerCase();
+    return (recentTracks || []).filter((t) => {
+      const name = String(t?.name || '').toLowerCase();
+      const artist = Array.isArray(t?.artist) ? t.artist.join(' / ') : String(t?.artist || '');
+      return name.includes(key) || artist.toLowerCase().includes(key);
+    });
+  }, [recentSearch, recentTracks]);
   const queueList = queue;
   const lyricLines = parseLrc(lyric?.lyric || '');
   const scrollToCurrent = () => {
@@ -266,8 +328,8 @@ export default function Home() {
   const currentItem = currentTrack;
 
   return (
-    <div className="grid h-full grid-cols-1 gap-4 lg:grid-cols-[280px_1fr_320px]">
-      <aside className="surface flex min-h-0 flex-col p-4">
+    <div className="home-grid grid grid-cols-1 items-start gap-4 lg:grid-cols-[280px_1fr_320px]">
+      <aside className="surface home-side flex min-h-0 flex-col p-4">
         <div className="mb-3 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">正在播放</p>
           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] text-blue-600">Now</span>
@@ -275,14 +337,14 @@ export default function Home() {
 
         {currentTrack ? (
           <>
-            <CoverImage track={currentTrack} size={220} className="h-56 w-full" />
+            <CoverImage track={currentTrack} size={128} className="h-32 w-full" />
             <p className="mt-3 truncate text-base font-semibold text-slate-800">{currentTrack.name}</p>
             <p className="truncate text-sm text-slate-500">
               {Array.isArray(currentTrack.artist) ? currentTrack.artist.join(' / ') : currentTrack.artist}
             </p>
           </>
         ) : (
-          <div className="flex h-56 items-center justify-center rounded-2xl border border-dashed border-slate-300 text-slate-400">请选择歌曲</div>
+          <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed border-slate-300 text-slate-400">请选择歌曲</div>
         )}
 
         {neteaseUser && neteasePlaylistsHome.length > 0 && (
@@ -344,7 +406,7 @@ export default function Home() {
         )}
       </aside>
 
-      <section className="surface flex min-h-0 flex-col">
+      <section className="surface home-main flex min-h-0 flex-col">
         <div className="border-b border-slate-200 p-4">
           <div className="mb-3 flex items-center justify-between">
             <div>
@@ -375,7 +437,7 @@ export default function Home() {
           {searchError && <p className="mt-2 text-sm text-amber-600">{searchError}</p>}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="home-results flex-1 overflow-y-auto p-4">
           <div className="sticky-bar mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-semibold text-slate-700">搜索结果 {searchSourceLabel ? <span className="text-blue-600">({searchSourceLabel})</span> : null}</h2>
             {results.length > 0 && (
@@ -420,6 +482,7 @@ export default function Home() {
                 </button>
               </div>
             )}
+            
           </div>
 
           <ul className="space-y-2">
@@ -428,17 +491,19 @@ export default function Home() {
               const current = currentTrack?.id === track.id;
 
               return (
-                <li key={`${track.id}-${idx}`} className={`group flex items-center gap-3 rounded-xl border p-2 transition ${current ? 'border-blue-300 bg-blue-50' : checked ? 'border-slate-300 bg-slate-50' : 'border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/30'}`}>
-                  <input type="checkbox" checked={checked} onChange={() => toggleSelect(track.id)} className="h-4 w-4" />
-                  <span className="w-5 text-center text-xs text-slate-400">{idx + 1}</span>
-                  <CoverImage track={track} size={44} className="h-11 w-11" />
+                <li key={`${track.id}-${idx}`} className={`result-row group flex items-center gap-3 rounded-xl border p-2 transition ${current ? 'border-blue-300 bg-blue-50' : checked ? 'border-slate-300 bg-slate-50' : 'border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/30'}`}>
+                  <div className="result-main flex min-w-0 items-center gap-3">
+                    <input type="checkbox" checked={checked} onChange={() => toggleSelect(track.id)} className="h-4 w-4" />
+                    <span className="w-5 text-center text-xs text-slate-400">{idx + 1}</span>
+                    <CoverImage track={track} size={44} className="h-11 w-11" />
 
-                  <button type="button" onClick={() => play(track, true)} className="min-w-0 flex-1 text-left">
-                    <p className="truncate text-sm font-medium text-slate-800">{track.name}</p>
-                    <p className="truncate text-xs text-slate-500">{Array.isArray(track.artist) ? track.artist.join(' / ') : track.artist}</p>
-                  </button>
+                    <button type="button" onClick={() => play(track, true)} className="result-info min-w-0 flex-1 text-left">
+                      <p className="truncate text-sm font-medium text-slate-800">{track.name}</p>
+                      <p className="truncate text-xs text-slate-500">{Array.isArray(track.artist) ? track.artist.join(' / ') : track.artist}</p>
+                    </button>
+                  </div>
 
-                  <div className="flex items-center gap-1 opacity-90 transition group-hover:opacity-100">
+                  <div className="result-actions flex flex-wrap items-center gap-1 opacity-90 transition group-hover:opacity-100">
                     <button type="button" onClick={() => { addToQueue(track); showToast('已加入队列'); }} className="btn-secondary py-1 text-xs">加队列</button>
                     <button type="button" onClick={() => openAddToPlaylist(track)} className="btn-secondary py-1 text-xs">加歌单</button>
                     {neteaseUser && (track.source || searchSource) === 'netease' && (
@@ -466,12 +531,15 @@ export default function Home() {
           {!loading && results.length === 0 && <p className="py-10 text-center text-sm text-slate-500">暂无搜索结果</p>}
         </div>
 
-        <div className={`queue-panel border-t border-slate-200 p-4 ${queueCollapsed ? 'is-collapsed' : ''}`}>
+        <div className={`queue-panel home-queue border-t border-slate-200 p-4 ${queueCollapsed ? 'is-collapsed' : ''}`}>
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-semibold text-slate-700">播放队列 ({queueList.length})</h3>
               <button type="button" onClick={() => setQueueCollapsed((v) => !v)} className="text-xs text-slate-500 hover:text-blue-600">
                 {queueCollapsed ? '展开' : '收起'}
+              </button>
+              <button type="button" onClick={() => setRecentDrawerOpen(true)} className="btn-secondary py-1 text-xs">
+                最近播放
               </button>
             </div>
             <div className="flex items-center gap-3 text-xs">
@@ -516,36 +584,11 @@ export default function Home() {
           )}
         </div>
 
-        <div className={`border-t border-slate-200 p-4 ${recentCollapsed ? 'is-collapsed' : ''}`}>
-          <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-slate-700">最近播放</h3>
-              <button type="button" onClick={() => setRecentCollapsed((v) => !v)} className="text-xs text-slate-500 hover:text-blue-600">
-                {recentCollapsed ? '展开' : '收起'}
-              </button>
-            </div>
-            {recentTracks?.length > 0 && <span className="text-xs text-slate-400">{recentTracks.length} 首</span>}
-          </div>
-          {!recentCollapsed && (!recentTracks || recentTracks.length === 0) ? (
-            <p className="text-sm text-slate-500">暂无最近播放</p>
-          ) : !recentCollapsed ? (
-            <ul className="max-h-40 space-y-1 overflow-y-auto">
-              {recentTracks.slice(0, 10).map((track, idx) => (
-                <li key={`${track.id}-r-${idx}`} className="flex items-center gap-2 rounded-lg bg-slate-50 px-2 py-1.5">
-                  <span className="w-5 text-xs text-slate-400">{idx + 1}</span>
-                  <button type="button" onClick={() => play(track)} className="min-w-0 flex-1 text-left">
-                    <p className="truncate text-sm text-slate-700">{track.name}</p>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
       </section>
 
-      <aside className="surface min-h-0 overflow-hidden">
+      <aside className="surface home-lyrics flex min-h-0 flex-col overflow-hidden">
         <div className="border-b border-slate-200 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">歌词</div>
-        <LyricsPanel lines={lyricLines} currentTime={currentTime ?? 0} className="h-[calc(100%-44px)]" />
+        <LyricsPanel lines={lyricLines} currentTime={currentTime ?? 0} className="lyrics-panel flex-1 min-h-0" />
       </aside>
 
       {playlistModal && playlistModal.length > 0 && (
@@ -705,6 +748,98 @@ export default function Home() {
       {toast && (
         <div className={`toast toast-${toast.tone || 'success'}`}>
           {toast.message}
+        </div>
+      )}
+
+      {recentDrawerOpen && (
+        <div className="recent-float-mask" onClick={() => setRecentDrawerOpen(false)}>
+          <aside
+            ref={recentFloatRef}
+            className="recent-float surface"
+            onClick={(e) => e.stopPropagation()}
+            onPointerMove={handleRecentDragMove}
+            onPointerUp={handleRecentDragEnd}
+            onPointerCancel={handleRecentDragEnd}
+            style={recentPos ? { left: `${recentPos.x}px`, top: `${recentPos.y}px`, right: 'auto', bottom: 'auto' } : undefined}
+          >
+            <div
+              className="recent-drag-handle flex cursor-move items-center justify-between border-b border-slate-200 px-4 py-3"
+              onPointerDown={handleRecentDragStart}
+              onPointerUp={handleRecentDragEnd}
+            >
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-slate-700">最近播放</h3>
+                {recentTracks?.length > 0 && <span className="text-xs text-slate-400">{recentTracks.length} 首</span>}
+              </div>
+              <button type="button" onClick={() => setRecentDrawerOpen(false)} className="btn-secondary py-1 text-xs">关闭</button>
+            </div>
+            <div className="border-b border-slate-200 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={recentSearch}
+                  onChange={(e) => setRecentSearch(e.target.value)}
+                  placeholder="搜索最近播放"
+                  className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                />
+                <button type="button" onClick={() => setRecentSearch('')} className="btn-secondary py-1 text-xs">清空</button>
+              </div>
+              {recentFiltered.length > 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setRecentSelectedIds(new Set(recentFiltered.map((t) => t.id)))}
+                    className="btn-secondary py-1"
+                  >
+                    全选
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRecentSelectedIds(new Set())}
+                    className="btn-secondary py-1"
+                  >
+                    清空选择
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const list = recentFiltered.filter((t) => recentSelectedIds.has(t.id));
+                      if (list.length) {
+                        addAllToQueue(list);
+                        setRecentSelectedIds(new Set());
+                        showToast(`已加入 ${list.length} 首到队列`);
+                      }
+                    }}
+                    className="btn-primary py-1"
+                  >
+                    加入队列
+                  </button>
+                </div>
+              )}
+            </div>
+            {!recentTracks || recentTracks.length === 0 ? (
+              <div className="flex flex-1 items-center justify-center text-sm text-slate-500">暂无最近播放</div>
+            ) : (
+              <ul className="flex-1 space-y-1 overflow-y-auto p-3">
+                {recentFiltered.map((track, idx) => {
+                  const checked = recentSelectedIds.has(track.id);
+                  return (
+                    <li key={`${track.id}-r-${idx}`} className="group flex items-center gap-2 rounded-lg bg-slate-50 px-2 py-1.5">
+                      <input type="checkbox" checked={checked} onChange={() => toggleRecentSelect(track.id)} className="h-4 w-4" />
+                      <span className="w-5 text-xs text-slate-400">{idx + 1}</span>
+                      <button type="button" onClick={() => play(track)} className="min-w-0 flex-1 text-left">
+                        <p className="truncate text-sm text-slate-700">{track.name}</p>
+                        <p className="truncate text-xs text-slate-400">{Array.isArray(track.artist) ? track.artist.join(' / ') : track.artist}</p>
+                      </button>
+                      <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+                        <button type="button" onClick={() => addToQueue(track)} className="btn-secondary py-1 text-xs">加队列</button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </aside>
         </div>
       )}
     </div>

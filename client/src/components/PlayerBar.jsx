@@ -168,12 +168,14 @@ export default function PlayerBar() {
 
   const audioSrc = !playUrl ? '' : playUrl.startsWith('http') ? `/api/stream?url=${encodeURIComponent(playUrl)}` : playUrl;
 
+  const progressRatio = duration > 0 ? Math.min(1, Math.max(0, (isSeeking ? seekTime : currentTime) / duration)) : 0;
+
   return (
     <>
       <audio ref={audio} src={audioSrc} />
 
-      <div className="m-3 mt-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)]">
-        <div className="mb-2 flex items-center gap-2">
+      <div className="player-bar m-2 mt-0 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)]">
+        <div className="player-progress mb-2 flex items-center gap-2">
           <span className="w-12 text-center text-xs text-slate-500">{formatTime(isSeeking ? seekTime : currentTime)}</span>
           <div className="relative flex-1">
             {showHover && duration > 0 && (
@@ -184,6 +186,12 @@ export default function PlayerBar() {
                 {formatTime(hoverTime)}
               </div>
             )}
+            <div className="progress-rail pointer-events-none absolute inset-y-1/2 left-0 right-0 -translate-y-1/2 rounded-full bg-slate-200/70">
+              <div
+                className="progress-fill h-full rounded-full bg-gradient-to-r from-blue-400 via-blue-500 to-indigo-500"
+                style={{ width: `${progressRatio * 100}%` }}
+              />
+            </div>
           <input
             ref={seekRef}
             type="range"
@@ -200,17 +208,17 @@ export default function PlayerBar() {
             onMouseMove={(e) => updateHover(e.clientX)}
             onMouseLeave={() => setShowHover(false)}
             onTouchMove={(e) => updateHover(e.touches[0]?.clientX || 0)}
-            className="h-1.5 w-full cursor-pointer accent-blue-500"
+            className="progress-range h-1.5 w-full cursor-pointer"
           />
           </div>
           <span className="w-12 text-center text-xs text-slate-500">{formatTime(duration)}</span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="player-bar-controls flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
+          <div className="player-track flex min-w-0 items-center gap-2 md:flex-1">
             {currentTrack ? (
               <>
-                <CoverImage track={currentTrack} size={44} className="h-11 w-11" />
+                <CoverImage track={currentTrack} size={40} className="h-10 w-10" />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-slate-800">{currentTrack.name}</p>
                   <p className="truncate text-xs text-slate-500">
@@ -223,9 +231,9 @@ export default function PlayerBar() {
             )}
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="player-actions flex items-center gap-1 md:order-none order-first">
             <button type="button" onClick={playPrev} className="btn-secondary p-2" title="上一首">
-              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" /></svg>
+              <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" /></svg>
             </button>
 
             <button
@@ -236,25 +244,26 @@ export default function PlayerBar() {
                   else audio.current.play();
                 }
               }}
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500 text-white hover:bg-blue-600"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500 text-white hover:bg-blue-600"
               title={isPlaying ? '暂停' : '播放'}
             >
               {isPlaying ? (
-                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
+                <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
               ) : (
-                <svg className="ml-0.5 h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                <svg className="ml-0.5 h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
               )}
             </button>
 
             <button type="button" onClick={playNext} className="btn-secondary p-2" title="下一首">
-              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
+              <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
             </button>
           </div>
 
-          {loadingUrl && <span className="text-xs text-slate-500">加载中...</span>}
-          {!loadingUrl && playError && <span className="text-xs text-rose-500">{playError}</span>}
+          <div className="player-status flex flex-wrap items-center gap-2 md:ml-auto">
+            {loadingUrl && <span className="text-xs text-slate-500">加载中...</span>}
+            {!loadingUrl && playError && <span className="text-xs text-rose-500">{playError}</span>}
 
-          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1 text-xs">
+            <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1 text-xs">
             <button
               type="button"
               onClick={() => setPlayMode('order')}
@@ -276,60 +285,61 @@ export default function PlayerBar() {
             >
               单曲
             </button>
-          </div>
+            </div>
 
-          <div className="relative">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setQualityOpen((o) => !o)}
+                className="btn-secondary py-1 text-xs"
+              >
+                音质 {quality}k
+              </button>
+
+              {qualityOpen && (
+                <ul className="absolute bottom-full right-0 mb-2 min-w-28 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+                  {[128, 192, 320].map((br) => (
+                    <li key={br}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuality(br);
+                          setQualityOpen(false);
+                        }}
+                        className="w-full rounded px-2 py-1 text-left text-xs text-slate-700 hover:bg-slate-100"
+                      >
+                        {br}k {quality === br ? '✓' : ''}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="flex w-full items-center gap-2 md:w-24">
+              <svg className="h-3.5 w-3.5 shrink-0 text-slate-500" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M3 9v6h4l5 5V4L7 9H3z" />
+              </svg>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={volume}
+                onChange={(e) => setVolume(parseFloat(e.target.value))}
+                className="h-1 w-full cursor-pointer accent-blue-500"
+              />
+            </div>
+
             <button
               type="button"
-              onClick={() => setQualityOpen((o) => !o)}
-              className="btn-secondary py-1 text-xs"
+              onClick={handleDownload}
+              disabled={!playUrl || !currentTrack}
+              className="btn-secondary py-1 text-xs disabled:opacity-40"
             >
-              音质 {quality}k
+              下载
             </button>
-
-            {qualityOpen && (
-              <ul className="absolute bottom-full right-0 mb-2 min-w-28 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
-                {[128, 192, 320].map((br) => (
-                  <li key={br}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setQuality(br);
-                        setQualityOpen(false);
-                      }}
-                      className="w-full rounded px-2 py-1 text-left text-xs text-slate-700 hover:bg-slate-100"
-                    >
-                      {br}k {quality === br ? '✓' : ''}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
-
-          <div className="flex w-24 items-center gap-2">
-            <svg className="h-3.5 w-3.5 shrink-0 text-slate-500" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M3 9v6h4l5 5V4L7 9H3z" />
-            </svg>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={volume}
-              onChange={(e) => setVolume(parseFloat(e.target.value))}
-              className="h-1 w-full cursor-pointer accent-blue-500"
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={handleDownload}
-            disabled={!playUrl || !currentTrack}
-            className="btn-secondary py-1 text-xs disabled:opacity-40"
-          >
-            下载
-          </button>
         </div>
       </div>
     </>
