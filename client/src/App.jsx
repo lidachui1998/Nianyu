@@ -445,7 +445,10 @@ function App() {
           <div className="app-shell">
             <header className="app-header">
               <div className="app-header-inner">
-                <NavLink to="/" className="brand">Nianyu</NavLink>
+                <NavLink to="/" className="brand">
+                  <span className="brand-icon" aria-hidden="true" />
+                  <span className="brand-text">Nianyu</span>
+                </NavLink>
                 <nav className="top-nav">
                   <NavLink to="/" className={({ isActive }) => (isActive ? 'top-nav-link top-nav-link-active' : 'top-nav-link')}>
                     首页

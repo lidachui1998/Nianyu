@@ -68,6 +68,29 @@ body {
   font-size: 1.3rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: url('/favicon.ico') center/contain no-repeat, #fff;
+  box-shadow: 0 8px 16px rgba(22, 40, 85, 0.16);
+  border: 1px solid rgba(20, 42, 80, 0.12);
+}
+
+.brand-text {
+  font-family: 'Manrope', 'Noto Sans SC', sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  font-size: 1.4rem;
+  background: linear-gradient(90deg, #182c52 0%, #3b5bd1 45%, #7b5cff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .top-nav {
