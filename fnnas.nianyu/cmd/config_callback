@@ -1,0 +1,11 @@
+#!/bin/sh
+APPNAME=fnnas.nianyu
+TRIM_PKGETC=${TRIM_PKGETC:-/var/apps/${APPNAME}/etc}
+CONF_FILE="${TRIM_PKGETC}/nianyu.env"
+
+GD_API_VAL="${wizard_gd_api:-https://music-api.gdstudio.xyz/api.php}"
+NETEASE_API_VAL="${wizard_netease_api:-https://netease-api.bjca.xyz}"
+
+mkdir -p "$TRIM_PKGETC"
+printf "GD_API='%s'\nNETEASE_API='%s'\n" "$GD_API_VAL" "$NETEASE_API_VAL" > "$CONF_FILE"
+exit 0

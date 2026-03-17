@@ -1,0 +1,31 @@
+[
+  {
+    "stepTitle": "\u63a5\u53e3\u914d\u7f6e",
+    "items": [
+      {
+        "type": "text",
+        "field": "wizard_gd_api",
+        "label": "GD API \u5730\u5740",
+        "initValue": "https://music-api.gdstudio.xyz/api.php",
+        "rules": [
+          {
+            "required": true,
+            "message": "\u8bf7\u8f93\u5165 GD API \u5730\u5740"
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_netease_api",
+        "label": "\u7f51\u6613\u4e91 API \u5730\u5740",
+        "initValue": "https://netease-api.bjca.xyz",
+        "rules": [
+          {
+            "required": true,
+            "message": "\u8bf7\u8f93\u5165\u7f51\u6613\u4e91 API \u5730\u5740"
+          }
+        ]
+      }
+    ]
+  }
+]

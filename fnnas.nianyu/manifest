@@ -1,0 +1,12 @@
+﻿appname=fnnas.nianyu
+version=1.0.0
+desc=Nianyu music app
+arch=x86_64
+display_name=Nianyu音乐
+maintainer=lidachui
+distributor=lidachui
+homepage=https://github.com/lidachui1998/Nianyu
+desktop_uidir=ui
+desktop_applaunchname=fnnas.nianyu.Application
+source=thirdparty
+install_dep_apps=nodejs_v22

@@ -4,6 +4,7 @@ import Home from './pages/Home';
 import Playlists from './pages/Playlists';
 import Login from './pages/Login';
 import Account from './pages/Account';
+import Settings from './pages/Settings';
 import PlayerBar from './components/PlayerBar';
 import { api } from './api';
 
@@ -456,6 +457,9 @@ function App() {
                   <NavLink to="/playlists" className={({ isActive }) => (isActive ? 'top-nav-link top-nav-link-active' : 'top-nav-link')}>
                     歌单
                   </NavLink>
+                  <NavLink to="/settings" className={({ isActive }) => (isActive ? 'top-nav-link top-nav-link-active' : 'top-nav-link')}>
+                    设置
+                  </NavLink>
                   <NavLink to="/account" className={({ isActive }) => (isActive ? 'top-nav-link top-nav-link-active' : 'top-nav-link')}>
                     账号
                   </NavLink>
@@ -484,6 +488,7 @@ function App() {
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/playlists" element={<Playlists />} />
+                <Route path="/settings" element={<Settings />} />
                 <Route path="/login" element={<Login onLogin={setNeteaseUser} onNeteaseRefresh={refreshNetease} />} />
                 <Route path="/account" element={<Account onNeteaseRefresh={refreshNetease} />} />
               </Routes>

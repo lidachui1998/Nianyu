@@ -1,0 +1,18 @@
+#!/bin/sh
+APPNAME=fnnas.nianyu
+TRIM_PKGETC=${TRIM_PKGETC:-/var/apps/${APPNAME}/etc}
+CONF_FILE="${TRIM_PKGETC}/nianyu.env"
+
+GD_API_VAL="https://music-api.gdstudio.xyz/api.php"
+NETEASE_API_VAL="https://netease-api.bjca.xyz"
+
+if [ -f "$CONF_FILE" ]; then
+  # shellcheck disable=SC1090
+  . "$CONF_FILE"
+  if [ -n "$GD_API" ]; then GD_API_VAL="$GD_API"; fi
+  if [ -n "$NETEASE_API" ]; then NETEASE_API_VAL="$NETEASE_API"; fi
+fi
+
+echo "wizard_gd_api=$GD_API_VAL"
+echo "wizard_netease_api=$NETEASE_API_VAL"
+exit 0

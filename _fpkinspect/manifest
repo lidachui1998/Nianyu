@@ -1,0 +1,13 @@
+appname               = fnnas.nianyu
+version               = 1.0.0
+desc                  = Nianyu music app
+arch                  = x86_64
+display_name          = Nianyu
+maintainer            = nianyu
+distributor           = nianyu
+desktop_uidir         = ui
+desktop_applaunchname = fnnas.nianyu.Application
+source                = thirdparty
+install_dep_apps      = nodejs_v22
+platform              = 
+checksum              = 4cd0330467854d9b672b8e7b5514b097

@@ -1,0 +1,12 @@
+#!/bin/sh
+APPNAME=fnnas.nianyu
+APPBASE=/var/apps/${APPNAME}
+TRIM_APPDEST=${TRIM_APPDEST:-$APPBASE}
+TARGET=${APPBASE}/target
+
+if [ -f "${TRIM_APPDEST}/app.tgz" ]; then
+  mkdir -p "$TARGET"
+  tar -xzf "${TRIM_APPDEST}/app.tgz" -C "$TARGET"
+fi
+
+exit 0

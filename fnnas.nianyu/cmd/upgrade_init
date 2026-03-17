@@ -1,0 +1,21 @@
+#!/bin/sh
+APPNAME=fnnas.nianyu
+APPBASE=/var/apps/${APPNAME}
+TRIM_APPDEST=${TRIM_APPDEST:-$APPBASE}
+TRIM_PKGETC=${TRIM_PKGETC:-/var/apps/${APPNAME}/etc}
+TARGET=${APPBASE}/target
+CONF_FILE="${TRIM_PKGETC}/nianyu.env"
+
+if [ -f "${TRIM_APPDEST}/app.tgz" ]; then
+  mkdir -p "$TARGET"
+  tar -xzf "${TRIM_APPDEST}/app.tgz" -C "$TARGET"
+fi
+
+if [ ! -f "$CONF_FILE" ]; then
+  GD_API_VAL="https://music-api.gdstudio.xyz/api.php"
+  NETEASE_API_VAL="https://netease-api.bjca.xyz"
+  mkdir -p "$TRIM_PKGETC"
+  printf "GD_API='%s'\nNETEASE_API='%s'\n" "$GD_API_VAL" "$NETEASE_API_VAL" > "$CONF_FILE"
+fi
+
+exit 0

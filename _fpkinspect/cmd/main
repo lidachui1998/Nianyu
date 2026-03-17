@@ -1,0 +1,103 @@
+#!/bin/sh
+APPNAME=fnnas.nianyu
+APPBASE=/var/apps/${APPNAME}
+TRIM_APPDEST=${TRIM_APPDEST:-$APPBASE}
+TRIM_PKGVAR=${TRIM_PKGVAR:-/var/apps/${APPNAME}/var}
+PIDDIR=${TRIM_PKGVAR}/run
+PIDFILE=${PIDDIR}/${APPNAME}.pid
+LOGDIR=${TRIM_PKGVAR}/log
+LOGFILE=${LOGDIR}/${APPNAME}.log
+
+log() {
+  echo "[$(date '+%F %T')] $*" | tee -a "$LOGFILE"
+}
+
+find_node() {
+  for p in /var/apps/nodejs_v22/target/bin/node /var/apps/nodejs_v20/target/bin/node /var/apps/nodejs_v18/target/bin/node; do
+    if [ -x "$p" ]; then
+      echo "$p"; return 0;
+    fi
+  done
+  command -v node 2>/dev/null || true
+}
+
+resolve_approot() {
+  if [ -d "${TRIM_APPDEST}/app/server" ]; then
+    echo "${TRIM_APPDEST}"; return 0;
+  fi
+  if [ -d "${TRIM_APPDEST}/target/app/server" ]; then
+    echo "${TRIM_APPDEST}/target"; return 0;
+  fi
+  if [ -d "${APPBASE}/target/app/server" ]; then
+    echo "${APPBASE}/target"; return 0;
+  fi
+  echo "${TRIM_APPDEST}"
+}
+
+start() {
+  mkdir -p "$PIDDIR" "$LOGDIR"
+  if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    log "$APPNAME already running"
+    exit 0
+  fi
+
+  DATA_DIR="${TRIM_DATA_SHARE_PATHS%%:*}"
+  if [ -z "$DATA_DIR" ]; then
+    DATA_DIR="$TRIM_PKGVAR"
+  fi
+
+  NODE_BIN="$(find_node)"
+  if [ -z "$NODE_BIN" ]; then
+    log "node not found. Ensure nodejs runtime is installed."
+    exit 1
+  fi
+
+  APPROOT="$(resolve_approot)"
+  if [ ! -d "${APPROOT}/app/server" ]; then
+    log "server dir missing. tried ${APPROOT}/app/server"
+    exit 1
+  fi
+
+  export DATA_DIR
+  export PORT=13007
+  export PATH="${APPROOT}/app/server/node_modules/.bin:$(dirname "$NODE_BIN"):${PATH}"
+
+  cd "${APPROOT}/app/server" || { log "server dir missing"; exit 1; }
+  log "Starting $APPNAME with DATA_DIR=$DATA_DIR NODE=$NODE_BIN APPROOT=$APPROOT"
+  nohup "$NODE_BIN" index.js >> "$LOGFILE" 2>&1 &
+  echo $! > "$PIDFILE"
+  log "Started $APPNAME"
+}
+
+stop() {
+  if [ ! -f "$PIDFILE" ]; then
+    log "$APPNAME not running"
+    exit 0
+  fi
+
+  PID=$(cat "$PIDFILE")
+  if kill -0 "$PID" 2>/dev/null; then
+    kill "$PID"
+    rm -f "$PIDFILE"
+    log "Stopped $APPNAME"
+  else
+    rm -f "$PIDFILE"
+    log "$APPNAME not running"
+  fi
+}
+
+status() {
+  if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    echo "$APPNAME is running"
+    exit 0
+  fi
+  echo "$APPNAME is not running"
+  exit 1
+}
+
+case "$1" in
+  start) start ;;
+  stop) stop ;;
+  status) status ;;
+  *) echo "Usage: $0 {start|stop|status}"; exit 1 ;;
+esac

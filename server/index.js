@@ -3,21 +3,25 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
 import fs from 'fs';
 import crypto from 'crypto';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __dirname = path.dirname(path.resolve(process.argv[1] || ''));
 
-const GD_API = process.env.GD_API || 'https://music-api.gdstudio.xyz/api.php';
-const NETEASE_API = process.env.NETEASE_API || 'https://netease-api.bjca.xyz';
 const PORT = parseInt(process.env.PORT || '13007', 10);
 
-const PLAYLISTS_FILE = path.join(__dirname, '..', 'data', 'playlists.json');
-const SYNC_FILE = path.join(__dirname, '..', 'data', 'sync.json');
-const USERS_FILE = path.join(__dirname, '..', 'data', 'users.json');
-const NETEASE_USERS_FILE = path.join(__dirname, '..', 'data', 'netease-users.json');
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
+const APP_NAME = process.env.APP_NAME || path.basename(path.dirname(__dirname));
+const DEFAULT_ENV_PATH = path.join(DATA_DIR, 'nianyu.env');
+const ETC_ENV_PATH = path.join('/var/apps', APP_NAME, 'etc', 'nianyu.env');
+const EXPLICIT_ENV_PATH = process.env.NIANYU_ENV_PATH || process.env.NIANYU_CONFIG_PATH;
+const DEFAULT_GD_API = process.env.GD_API || 'https://music-api.gdstudio.xyz/api.php';
+const DEFAULT_NETEASE_API = process.env.NETEASE_API || 'https://netease-api.bjca.xyz';
+const PLAYLISTS_FILE = path.join(DATA_DIR, 'playlists.json');
+const SYNC_FILE = path.join(DATA_DIR, 'sync.json');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const NETEASE_USERS_FILE = path.join(DATA_DIR, 'netease-users.json');
 
 const app = express();
 
@@ -38,6 +42,82 @@ function ensureDir(filePath) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
+function resolveEnvPath() {
+  if (EXPLICIT_ENV_PATH) return EXPLICIT_ENV_PATH;
+  if (fs.existsSync(ETC_ENV_PATH)) return ETC_ENV_PATH;
+  return DEFAULT_ENV_PATH;
+}
+
+function readEnvConfig(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return {};
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const out = {};
+    raw.split(/\r?\n/).forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) return;
+      const idx = trimmed.indexOf('=');
+      if (idx === -1) return;
+      const key = trimmed.slice(0, idx).trim();
+      let val = trimmed.slice(idx + 1).trim();
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      out[key] = val;
+    });
+    return out;
+  } catch (e) {
+    console.warn('[config] load failed:', e.message);
+    return {};
+  }
+}
+
+function normalizeApiUrl(value) {
+  if (!value) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+    return url.toString();
+  } catch {
+    return '';
+  }
+}
+
+function loadRuntimeConfig() {
+  const env = readEnvConfig(resolveEnvPath());
+  const gdApi = normalizeApiUrl(env.GD_API) || DEFAULT_GD_API;
+  const neteaseApi = normalizeApiUrl(env.NETEASE_API) || DEFAULT_NETEASE_API;
+  return { gdApi, neteaseApi };
+}
+
+let runtimeConfig = loadRuntimeConfig();
+
+function getConfig() {
+  return runtimeConfig;
+}
+
+function persistConfig(config) {
+  try {
+    const envPath = resolveEnvPath();
+    ensureDir(envPath);
+    const gdApi = config.gdApi || DEFAULT_GD_API;
+    const neteaseApi = config.neteaseApi || DEFAULT_NETEASE_API;
+    const safe = (value) => String(value).replace(/'/g, '%27');
+    const body = `GD_API='${safe(gdApi)}'\nNETEASE_API='${safe(neteaseApi)}'\n`;
+    fs.writeFileSync(envPath, body, 'utf8');
+  } catch (e) {
+    console.warn('[config] save failed:', e.message);
+  }
+}
+
+function updateConfig(patch) {
+  runtimeConfig = { ...runtimeConfig, ...patch };
+  persistConfig(runtimeConfig);
+  return runtimeConfig;
+}
+
 const GD_REQUEST_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   Accept: 'application/json, text/plain, */*',
@@ -45,7 +125,7 @@ const GD_REQUEST_HEADERS = {
 };
 
 async function proxyGD(params) {
-  const url = new URL(GD_API);
+  const url = new URL(getConfig().gdApi || DEFAULT_GD_API);
   Object.entries(params).forEach(([k, v]) => {
     if (v != null && v !== '') url.searchParams.set(k, String(v));
   });
@@ -59,11 +139,12 @@ async function proxyGD(params) {
 }
 
 async function proxyNetease(method, pathname, body = null, cookie = null) {
-  if (!NETEASE_API) {
+  const neteaseApi = getConfig().neteaseApi || '';
+  if (!neteaseApi) {
     return { code: -1, msg: 'NETEASE_API is not configured' };
   }
 
-  let url = `${NETEASE_API.replace(/\/$/, '')}${pathname}`;
+  let url = `${neteaseApi.replace(/\/$/, '')}${pathname}`;
   const opts = { method, headers: {} };
 
   if (method === 'POST') opts.headers['Content-Type'] = 'application/json';
@@ -367,7 +448,31 @@ app.get('/api/lyric', async (req, res) => {
 });
 
 app.get('/api/netease/configured', (req, res) => {
-  res.json({ configured: !!NETEASE_API });
+  res.json({ configured: !!getConfig().neteaseApi });
+});
+
+app.get('/api/config', (req, res) => {
+  const cfg = getConfig();
+  res.json({ gdApi: cfg.gdApi, neteaseApi: cfg.neteaseApi });
+});
+
+app.post('/api/config', (req, res) => {
+  const patch = {};
+  if (req.body?.gdApi !== undefined) {
+    const gdApi = normalizeApiUrl(req.body.gdApi);
+    if (!gdApi) return res.status(400).json({ error: 'GD_API is invalid' });
+    patch.gdApi = gdApi;
+  }
+  if (req.body?.neteaseApi !== undefined) {
+    const neteaseApi = normalizeApiUrl(req.body.neteaseApi);
+    if (!neteaseApi) return res.status(400).json({ error: 'NETEASE_API is invalid' });
+    patch.neteaseApi = neteaseApi;
+  }
+  if (!Object.keys(patch).length) {
+    return res.status(400).json({ error: 'No config provided' });
+  }
+  const next = updateConfig(patch);
+  return res.json({ ok: true, config: next });
 });
 
 app.get('/api/auth/status', (req, res) => {
@@ -921,5 +1026,5 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Music-GD server running at http://0.0.0.0:${PORT}`);
-  if (!NETEASE_API) console.log('Warning: NETEASE_API is not configured.');
+  if (!getConfig().neteaseApi) console.log('Warning: NETEASE_API is not configured.');
 });
