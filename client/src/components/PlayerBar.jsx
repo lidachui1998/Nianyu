@@ -52,6 +52,7 @@ export default function PlayerBar() {
   const hoverNextRef = useRef(null);
   const lastTimeUpdateRef = useRef(0);
   const [qualityOpen, setQualityOpen] = useState(false);
+  const [downloadHint, setDownloadHint] = useState('');
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekTime, setSeekTime] = useState(0);
   const [hoverTime, setHoverTime] = useState(0);
@@ -177,11 +178,26 @@ export default function PlayerBar() {
     const artistText = formatArtists(currentTrack.artist).replace(/\s+/g, ' ').trim();
     const name = `${currentTrack.name}-${artistText}`.replace(/[/\\?*:|"]/g, '_');
 
+    const filename = `${name}.mp3`;
+    const electronApi = window?.nianyu?.downloadTrack;
+    if (electronApi) {
+      setDownloadHint('开始下载...');
+      electronApi({ url: playUrl, filename })
+        .then(() => setDownloadHint('已保存到下载目录'))
+        .catch(() => setDownloadHint('下载失败'))
+        .finally(() => setTimeout(() => setDownloadHint(''), 2000));
+      return;
+    }
+
     const url = `/api/download?url=${encodeURIComponent(playUrl)}&name=${encodeURIComponent(name)}`;
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${name}.mp3`;
+    a.download = filename;
+    a.rel = 'noopener';
+    a.style.display = 'none';
+    document.body.appendChild(a);
     a.click();
+    setTimeout(() => a.remove(), 0);
   };
 
   const audioSrc = !playUrl ? '' : playUrl.startsWith('http') ? `/api/stream?url=${encodeURIComponent(playUrl)}` : playUrl;
@@ -206,7 +222,7 @@ export default function PlayerBar() {
             )}
             <div className="progress-rail pointer-events-none absolute inset-y-1/2 left-0 right-0 -translate-y-1/2 rounded-full bg-slate-200/70">
               <div
-                className="progress-fill h-full rounded-full bg-gradient-to-r from-blue-400 via-blue-500 to-indigo-500"
+                className="progress-fill h-full rounded-full"
                 style={{ width: `${progressRatio * 100}%` }}
               />
             </div>
@@ -280,6 +296,7 @@ export default function PlayerBar() {
           <div className="player-status flex flex-wrap items-center gap-2 md:ml-auto">
             {loadingUrl && <span className="text-xs text-slate-500">加载中...</span>}
             {!loadingUrl && playError && <span className="text-xs text-rose-500">{playError}</span>}
+            {downloadHint && <span className="text-xs text-slate-500">{downloadHint}</span>}
 
             <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1 text-xs">
             <button

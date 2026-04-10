@@ -1,8 +1,9 @@
 {
   "name": "nianyu",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
+  "main": "electron/main.mjs",
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "node server/index.js",
@@ -10,6 +11,9 @@
     "build": "npm run build:client && node server/index.js",
     "build:client": "cd client && npm run build",
     "start": "node server/index.js",
+    "start:electron": "electron .",
+    "pack:win": "npm run build:client && electron-builder --win",
+    "pack": "npm run build:client && electron-builder",
     "docker:build": "docker build -t nianyu .",
     "docker:up": "docker-compose up -d"
   },
@@ -22,6 +26,47 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "esbuild": "^0.27.4"
+    "electron": "^41.0.3",
+    "electron-builder": "^26.8.1",
+    "esbuild": "^0.27.4",
+    "png-to-ico": "^3.0.1",
+    "rcedit": "^4.0.1"
+  },
+  "build": {
+    "appId": "com.nianyu.app",
+    "icon": "build/icon.ico",
+    "productName": "NianYu音乐",
+    "artifactName": "NianYuMusic-Setup-${version}.${ext}",
+    "afterPack": "tools/after-pack.mjs",
+    "directories": {
+      "output": "dist-electron",
+      "buildResources": "build"
+    },
+    "files": [
+      "server/**",
+      "client/dist/**",
+      "electron/**",
+      "package.json",
+      "icon.png",
+      "icon.ico"
+    ],
+    "asar": true,
+    "win": {
+      "target": "nsis",
+      "executableName": "NianYuMusic",
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false,
+      "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "NianYu音乐",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
+    }
   }
 }

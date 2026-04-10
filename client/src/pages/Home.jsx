@@ -29,6 +29,7 @@ export default function Home() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [neteasePlaylistsHome, setNeteasePlaylistsHome] = useState([]);
   const [dailyRecs, setDailyRecs] = useState([]);
+  const [dailySongs, setDailySongs] = useState([]);
   const [dragIndex, setDragIndex] = useState(null);
   const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
@@ -38,6 +39,8 @@ export default function Home() {
   const [neteasePlaylistLoading, setNeteasePlaylistLoading] = useState(false);
   const [homePlaylistDetail, setHomePlaylistDetail] = useState(null);
   const [homePlaylistLoading, setHomePlaylistLoading] = useState(false);
+  const [homeIntelligenceLoading, setHomeIntelligenceLoading] = useState(false);
+  const [quickIntelligenceLoading, setQuickIntelligenceLoading] = useState(false);
   const [homePlaylistSearch, setHomePlaylistSearch] = useState('');
   const [queueCollapsed, setQueueCollapsed] = useState(false);
   const [recentDrawerOpen, setRecentDrawerOpen] = useState(false);
@@ -79,6 +82,7 @@ export default function Home() {
     if (!neteaseUser) {
       setNeteasePlaylistsHome([]);
       setDailyRecs([]);
+      setDailySongs([]);
       return;
     }
 
@@ -91,6 +95,19 @@ export default function Home() {
       const list = res.data?.recommend ?? res.data?.data ?? res.data ?? [];
       setDailyRecs(Array.isArray(list) ? list.slice(0, 6) : []);
     }).catch(() => setDailyRecs([]));
+
+    api.get('/api/netease/recommend/songs').then((res) => {
+      const list = res.data?.data?.dailySongs ?? res.data?.dailySongs ?? [];
+      setDailySongs(Array.isArray(list) ? list.slice(0, 12).map((item) => ({
+        id: item?.id,
+        name: item?.name,
+        artist: Array.isArray(item?.ar) ? item.ar.map((a) => a?.name).filter(Boolean) : [],
+        album: item?.al?.name || '',
+        picUrl: item?.al?.picUrl || '',
+        pic_id: item?.al?.picUrl || item?.al?.pic_str || '',
+        source: 'netease',
+      })).filter((t) => t.id) : []);
+    }).catch(() => setDailySongs([]));
   }, [neteaseUser]);
 
   useEffect(() => {
@@ -382,6 +399,89 @@ export default function Home() {
     }
   };
 
+  const toNeteaseTrackItem = (raw) => {
+    const track = raw?.songInfo || raw?.songData || raw?.track || raw;
+    return {
+      id: track?.id,
+      name: track?.name,
+      artist: track?.ar?.map((a) => a.name) || track?.artists?.map((a) => a.name) || [],
+      pic_id: track?.al?.pic_str || track?.al?.pic || track?.al?.picUrl || '',
+      source: 'netease',
+    };
+  };
+
+  const playHomeIntelligenceList = async () => {
+    if (!homePlaylistDetail?.id) return;
+    const tracks = homePlaylistDetail.tracks || [];
+    const seed = tracks[0]?.track || tracks[0];
+    if (!seed?.id) return;
+
+    setHomeIntelligenceLoading(true);
+    try {
+      const res = await api.get('/api/netease/intelligence/list', {
+        params: { pid: homePlaylistDetail.id, id: seed.id, count: 50 },
+      });
+      const listRaw = res.data?.data || res.data?.songs || [];
+      const list = (Array.isArray(listRaw) ? listRaw : []).map(toNeteaseTrackItem).filter((t) => t.id);
+      if (list.length) {
+        playList(list);
+        showToast(`已开启心动模式，加载 ${list.length} 首`);
+        return;
+      }
+
+      const fallback = tracks.map(toNeteaseTrackItem).filter((t) => t.id);
+      if (fallback.length) {
+        playList(fallback);
+        showToast('心动模式暂不可用，已播放原歌单', 'info');
+      }
+    } catch {
+      const fallback = tracks.map(toNeteaseTrackItem).filter((t) => t.id);
+      if (fallback.length) playList(fallback);
+      showToast('心动模式请求失败，已回退原歌单', 'error');
+    } finally {
+      setHomeIntelligenceLoading(false);
+    }
+  };
+
+  const playQuickIntelligence = async () => {
+    if (!neteasePlaylistsHome.length) return;
+    const firstPlaylist = neteasePlaylistsHome[0];
+    if (!firstPlaylist?.id) return;
+
+    setQuickIntelligenceLoading(true);
+    try {
+      const detailRes = await api.get('/api/netease/playlist/detail', { params: { id: firstPlaylist.id } });
+      const detail = detailRes.data?.playlist ?? detailRes.data;
+      const tracks = detail?.tracks || [];
+      const seed = tracks[0]?.track || tracks[0];
+      if (!seed?.id) {
+        showToast('该歌单暂无可用歌曲', 'info');
+        return;
+      }
+
+      const res = await api.get('/api/netease/intelligence/list', {
+        params: { pid: firstPlaylist.id, id: seed.id, count: 50 },
+      });
+      const listRaw = res.data?.data || res.data?.songs || [];
+      const list = (Array.isArray(listRaw) ? listRaw : []).map(toNeteaseTrackItem).filter((t) => t.id);
+      if (list.length) {
+        playList(list);
+        showToast(`已开启心动模式，加载 ${list.length} 首`);
+        return;
+      }
+
+      const fallback = tracks.map(toNeteaseTrackItem).filter((t) => t.id);
+      if (fallback.length) {
+        playList(fallback);
+        showToast('心动模式暂不可用，已播放原歌单', 'info');
+      }
+    } catch {
+      showToast('心动模式请求失败', 'error');
+    } finally {
+      setQuickIntelligenceLoading(false);
+    }
+  };
+
   const currentItem = currentTrack;
 
   return (
@@ -408,7 +508,17 @@ export default function Home() {
           <div className="mt-4">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">网易云歌单</p>
-              <Link to="/playlists" className="text-xs text-blue-600 hover:underline">查看更多</Link>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={playQuickIntelligence}
+                  disabled={quickIntelligenceLoading}
+                  className="text-xs text-teal-600 hover:underline disabled:opacity-50"
+                >
+                  {quickIntelligenceLoading ? '心动模式加载中...' : '心动模式'}
+                </button>
+                <Link to="/playlists" className="text-xs text-blue-600 hover:underline">查看更多</Link>
+              </div>
             </div>
             <div className="space-y-2">
               {neteasePlaylistsHome.slice(0, 3).map((pl) => (
@@ -455,6 +565,42 @@ export default function Home() {
                   <div className="min-w-0">
                     <p className="truncate text-sm text-slate-700">{pl.name}</p>
                     <p className="text-xs text-slate-400">{pl.copywriter || '每日推荐歌单'}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {neteaseUser && dailySongs.length > 0 && (
+          <div className="mt-4">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">推荐歌曲</p>
+              <button
+                type="button"
+                onClick={() => {
+                  playList(dailySongs);
+                  showToast(`已开始播放 ${dailySongs.length} 首推荐歌曲`);
+                }}
+                className="text-xs text-teal-600 hover:underline"
+              >
+                播放全部
+              </button>
+            </div>
+            <div className="space-y-2">
+              {dailySongs.slice(0, 6).map((track) => (
+                <button
+                  key={track.id}
+                  type="button"
+                  onClick={() => play(track, true)}
+                  className="flex w-full items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2 text-left transition hover:border-teal-300 hover:bg-teal-50/50"
+                >
+                  <CoverImage track={track} size={40} className="h-10 w-10 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-slate-700">{track.name}</p>
+                    <p className="truncate text-xs text-slate-400">
+                      {Array.isArray(track.artist) ? track.artist.join(' / ') : track.artist}
+                    </p>
                   </div>
                 </button>
               ))}
@@ -754,21 +900,20 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => {
-                    const list = (homePlaylistDetail.tracks || []).map((t) => {
-                      const track = t.track || t;
-                      return {
-                        id: track.id,
-                        name: track.name,
-                        artist: track.ar?.map((a) => a.name) || track.artists?.map((a) => a.name) || [],
-                        pic_id: track.al?.pic_str || track.al?.pic,
-                        source: 'netease',
-                      };
-                    });
+                    const list = (homePlaylistDetail.tracks || []).map(toNeteaseTrackItem).filter((t) => t.id);
                     if (list.length) playList(list);
                   }}
                   className="btn-primary py-1 text-sm"
                 >
                   全部播放
+                </button>
+                <button
+                  type="button"
+                  onClick={playHomeIntelligenceList}
+                  disabled={homeIntelligenceLoading}
+                  className="btn-secondary py-1 text-sm disabled:opacity-50"
+                >
+                  {homeIntelligenceLoading ? '心动模式加载中...' : '心动模式'}
                 </button>
                 <button type="button" onClick={() => setHomePlaylistDetail(null)} className="btn-secondary py-1 text-sm">关闭</button>
               </div>
@@ -803,13 +948,7 @@ export default function Home() {
                       return name.includes(key) || artists.includes(key);
                     }).map((t, i) => {
                       const track = t.track || t;
-                      const item = {
-                        id: track.id,
-                        name: track.name,
-                        artist: track.ar?.map((a) => a.name) || track.artists?.map((a) => a.name) || [],
-                        pic_id: track.al?.pic_str || track.al?.pic,
-                        source: 'netease',
-                      };
+                      const item = toNeteaseTrackItem(track);
                       return (
                         <li key={track.id || i}>
                           <button type="button" onClick={() => play(item, true)} className="flex w-full items-center gap-3 rounded-lg bg-slate-50 px-2 py-2 text-left">

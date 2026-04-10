@@ -3,11 +3,13 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
 import fs from 'fs';
 import crypto from 'crypto';
 
-const __dirname = path.dirname(path.resolve(process.argv[1] || ''));
+const metaUrl = typeof import.meta !== 'undefined' && import.meta && import.meta.url ? import.meta.url : null;
+const __dirname = metaUrl ? path.dirname(fileURLToPath(metaUrl)) : path.dirname(process.argv[1] || process.cwd());
 
 const PORT = parseInt(process.env.PORT || '13007', 10);
 
@@ -802,6 +804,34 @@ app.get('/api/netease/recommend/resource', async (req, res) => {
   }
 });
 
+app.get('/api/netease/recommend/songs', async (req, res) => {
+  const cookie = req.session?.neteaseCookie;
+  if (!cookie) return res.json({ code: 301, msg: 'Please login first' });
+  try {
+    const result = await proxyNetease('GET', '/recommend/songs', null, cookie);
+    return res.json(result);
+  } catch (e) {
+    return res.status(500).json({ code: -1, msg: String(e.message) });
+  }
+});
+
+app.get('/api/netease/intelligence/list', async (req, res) => {
+  const cookie = req.session?.neteaseCookie;
+  if (!cookie) return res.json({ code: 301, msg: 'Please login first' });
+
+  const pid = req.query.pid;
+  const id = req.query.id;
+  const count = req.query.count || 30;
+  if (!pid || !id) return res.json({ code: 400, msg: 'pid and id are required' });
+
+  try {
+    const result = await proxyNetease('GET', '/playmode/intelligence/list', { pid, id, sid: id, count }, cookie);
+    return res.json(result);
+  } catch (e) {
+    return res.status(500).json({ code: -1, msg: String(e.message) });
+  }
+});
+
 app.get('/api/netease/playlist', async (req, res) => {
   const cookie = req.session?.neteaseCookie;
   const uid = req.query.uid || req.session?.neteaseUid;
@@ -1006,11 +1036,17 @@ app.get('/api/download', async (req, res) => {
     const rawName = String(req.query.name || 'audio');
     const safeName = rawName.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim();
     const name = `${(safeName || 'audio').slice(0, 120)}.mp3`;
-    const buf = await r.arrayBuffer();
+    const contentType = r.headers.get('content-type') || 'audio/mpeg';
+    const contentLength = r.headers.get('content-length');
 
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(name)}"`);
-    res.setHeader('Content-Type', r.headers.get('content-type') || 'audio/mpeg');
-    return res.send(Buffer.from(buf));
+    res.setHeader('Content-Type', contentType);
+    if (contentLength) res.setHeader('Content-Length', contentLength);
+
+    if (!r.body) return res.end();
+    r.body.on('error', () => res.end());
+    r.body.pipe(res);
+    return;
   } catch (e) {
     return res.status(500).json({ error: String(e.message) });
   }
@@ -1024,7 +1060,23 @@ app.get('*', (req, res) => {
   return res.sendFile(path.join(dist, 'index.html'));
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Music-GD server running at http://0.0.0.0:${PORT}`);
-  if (!getConfig().neteaseApi) console.log('Warning: NETEASE_API is not configured.');
-});
+function startListening(port, attempt = 0) {
+  const server = app.listen(port, '0.0.0.0', () => {
+    process.env.PORT = String(port);
+    console.log(`Music-GD server running at http://0.0.0.0:${port}`);
+    if (!getConfig().neteaseApi) console.log('Warning: NETEASE_API is not configured.');
+  });
+
+  server.on('error', (err) => {
+    if (err && err.code === 'EADDRINUSE' && attempt < 20) {
+      const nextPort = port + 1;
+      console.warn(`[server] Port ${port} in use, retrying ${nextPort}`);
+      startListening(nextPort, attempt + 1);
+      return;
+    }
+    console.error('[server] Failed to start:', err?.message || err);
+    process.exit(1);
+  });
+}
+
+startListening(PORT);

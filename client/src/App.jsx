@@ -10,8 +10,16 @@ import { api } from './api';
 
 export const PlayerContext = createContext(null);
 export const NeteaseContext = createContext(null);
+const PLAY_RETRY_COUNT = 2;
 
 function App() {
+  const [theme, setTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem('theme');
+      if (saved === 'dark' || saved === 'light') return saved;
+    } catch {}
+    return 'light';
+  });
   const [currentTrack, setCurrentTrack] = useState(null);
   const [queue, setQueue] = useState([]);
   const [playHistory, setPlayHistory] = useState([]);
@@ -35,6 +43,7 @@ function App() {
   const [syncLoaded, setSyncLoaded] = useState(false);
   const resumeTimeRef = useRef(null);
   const resumeAutoPlayRef = useRef(false);
+  const playRequestSeqRef = useRef(0);
 
   const restoreNeteaseSession = useCallback(async () => {
     try {
@@ -128,6 +137,21 @@ function App() {
 
   useEffect(() => {
     try {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
+    } catch {}
+  }, [theme]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('backgroundPlay');
+      const mode = saved === '1' ? 'background' : 'quit';
+      window?.nianyu?.setCloseBehavior?.(mode);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
       const cached = localStorage.getItem('neteaseUser');
       if (cached) setNeteaseUser(JSON.parse(cached));
     } catch {}
@@ -185,6 +209,7 @@ function App() {
 
   const play = useCallback(async (track, appendToQueue = false, meta = {}) => {
     if (!track?.id) return;
+    const requestSeq = ++playRequestSeqRef.current;
     setPlayError('');
 
     const shouldRecordHistory = meta.recordHistory !== false;
@@ -216,28 +241,75 @@ function App() {
     });
 
     try {
-      const res = await api.get('/api/url', {
-        params: { id: track.id, source: track.source || 'kuwo', br: quality },
-      });
+      let url = '';
+      let lastError = null;
 
-      const url = res.data?.url;
-      if (url) {
-        setPlayUrl(url);
-        setIsPlaying(true);
-      } else {
-        setPlayError('无法获取播放链接');
+      for (let attempt = 0; attempt <= PLAY_RETRY_COUNT; attempt += 1) {
+        try {
+          const res = await api.get('/api/url', {
+            params: { id: track.id, source: track.source || 'kuwo', br: quality },
+          });
+          url = res.data?.url || '';
+          if (url) break;
+          lastError = new Error('Play URL not found');
+        } catch (err) {
+          lastError = err;
+        }
+
+        if (attempt < PLAY_RETRY_COUNT) {
+          await new Promise((resolve) => setTimeout(resolve, 450 * (attempt + 1)));
+        }
       }
+
+      if (requestSeq !== playRequestSeqRef.current) return;
+
+      if (!url) {
+        if (lastError) {
+          // eslint-disable-next-line no-console
+          console.warn('[player] play url retries exhausted:', lastError?.message || lastError);
+        }
+        setPlayError('播放失败，重试2次后已自动跳过');
+        setIsPlaying(false);
+
+        if (meta.autoSkipOnFail !== false) {
+          let nextTrack = null;
+          if (queue.length > 0) {
+            if (playMode === 'shuffle') {
+              const candidates = queue.filter((t) => t?.id && t.id !== track.id);
+              if (candidates.length > 0) nextTrack = candidates[Math.floor(Math.random() * candidates.length)];
+            } else {
+              const idx = queue.findIndex((t) => t?.id === track.id);
+              if (idx >= 0 && idx < queue.length - 1) nextTrack = queue[idx + 1];
+              else if (idx < 0 && queue.length > 0) nextTrack = queue[0];
+            }
+          }
+
+          if (nextTrack?.id && nextTrack.id !== track.id) {
+            setTimeout(() => {
+              play(nextTrack, false, { recordHistory: true, autoSkipOnFail: true });
+            }, 120);
+          }
+        }
+        return;
+      }
+
+      setPlayUrl(url);
+      setIsPlaying(true);
 
       api.get('/api/lyric', { params: { id: track.id, source: track.source || 'kuwo' } }).then((r) => {
         const d = r.data;
         setLyric({ lyric: d?.lyric || '', tlyric: d?.tlyric || '' });
       }).catch(() => {});
-    } catch {
-      setPlayError('播放失败，请稍后重试');
+    } catch (e) {
+      if (requestSeq !== playRequestSeqRef.current) return;
+      setPlayError('播放失败，重试2次后已自动跳过');
+      setIsPlaying(false);
+      // eslint-disable-next-line no-console
+      console.warn('[player] unexpected play error:', e?.message || e);
     } finally {
-      setLoadingUrl(false);
+      if (requestSeq === playRequestSeqRef.current) setLoadingUrl(false);
     }
-  }, [currentTrack, quality]);
+  }, [currentTrack, playMode, quality, queue]);
 
   const getQueueIndex = useCallback((id) => queue.findIndex((t) => t?.id === id), [queue]);
 
@@ -463,6 +535,14 @@ function App() {
                   <NavLink to="/account" className={({ isActive }) => (isActive ? 'top-nav-link top-nav-link-active' : 'top-nav-link')}>
                     账号
                   </NavLink>
+                  <button
+                    type="button"
+                    onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+                    className="top-nav-link"
+                    title="切换主题"
+                  >
+                    {theme === 'dark' ? '白天' : '夜间'}
+                  </button>
                   {neteaseUser ? (
                     <NavLink to="/account" className="account-chip">
                       <span className="account-avatar">

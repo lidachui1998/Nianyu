@@ -4,6 +4,13 @@ import { api } from '../api';
 export default function Settings() {
   const [gdApi, setGdApi] = useState('');
   const [neteaseApi, setNeteaseApi] = useState('');
+  const [backgroundPlay, setBackgroundPlay] = useState(() => {
+    try {
+      return localStorage.getItem('backgroundPlay') === '1';
+    } catch {
+      return false;
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -26,6 +33,13 @@ export default function Settings() {
   useEffect(() => {
     loadConfig();
   }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('backgroundPlay', backgroundPlay ? '1' : '0');
+    } catch {}
+    window?.nianyu?.setCloseBehavior?.(backgroundPlay ? 'background' : 'quit');
+  }, [backgroundPlay]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -65,6 +79,23 @@ export default function Settings() {
         <h1 className="text-2xl font-bold text-slate-800">接口配置</h1>
         <p className="mt-2 text-sm text-slate-600">
           修改 GD API 和网易云 API 地址，保存后即时生效。
+        </p>
+      </section>
+
+      <section className="surface p-6">
+        <h2 className="text-lg font-semibold text-slate-800">后台播放</h2>
+        <p className="mt-1 text-xs text-slate-500">控制点击关闭按钮时的行为。</p>
+        <label className="mt-4 flex items-center gap-3 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={backgroundPlay}
+            onChange={(e) => setBackgroundPlay(e.target.checked)}
+            className="h-4 w-4 accent-red-500"
+          />
+          关闭窗口时继续播放（最小化到托盘）
+        </label>
+        <p className="mt-2 text-xs text-slate-500">
+          开启后，点击关闭会隐藏到托盘；需要退出请使用托盘菜单或任务栏右键。
         </p>
       </section>
 

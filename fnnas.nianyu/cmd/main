@@ -23,11 +23,20 @@ find_node() {
 }
 
 resolve_approot() {
+  if [ -d "${TRIM_APPDEST}/app/server" ]; then
+    echo "${TRIM_APPDEST}/app"; return 0;
+  fi
   if [ -d "${TRIM_APPDEST}/server" ]; then
     echo "${TRIM_APPDEST}"; return 0;
   fi
+  if [ -d "${TRIM_APPDEST}/target/app/server" ]; then
+    echo "${TRIM_APPDEST}/target/app"; return 0;
+  fi
   if [ -d "${TRIM_APPDEST}/target/server" ]; then
     echo "${TRIM_APPDEST}/target"; return 0;
+  fi
+  if [ -d "${APPBASE}/target/app/server" ]; then
+    echo "${APPBASE}/target/app"; return 0;
   fi
   if [ -d "${APPBASE}/target/server" ]; then
     echo "${APPBASE}/target"; return 0;
@@ -62,6 +71,7 @@ start() {
   APPROOT="$(resolve_approot)"
   if [ ! -d "${APPROOT}/server" ]; then
     log "server dir missing. tried ${APPROOT}/server"
+    log "hint: checked TRIM_APPDEST=$TRIM_APPDEST APPBASE=$APPBASE"
     exit 1
   fi
 
@@ -72,8 +82,16 @@ start() {
   export PATH="$(dirname "$NODE_BIN"):${PATH}"
 
   cd "${APPROOT}/server" || { log "server dir missing"; exit 1; }
+  ENTRY="index.cjs"
+  if [ ! -f "$ENTRY" ]; then
+    ENTRY="index.mjs"
+  fi
+  if [ ! -f "$ENTRY" ]; then
+    log "server entry missing (index.mjs/index.cjs)"
+    exit 1
+  fi
   log "Starting $APPNAME with DATA_DIR=$DATA_DIR NODE=$NODE_BIN APPROOT=$APPROOT"
-  nohup "$NODE_BIN" index.cjs >> "$LOGFILE" 2>&1 &
+  nohup "$NODE_BIN" "$ENTRY" >> "$LOGFILE" 2>&1 &
   echo $! > "$PIDFILE"
   log "Started $APPNAME"
 }

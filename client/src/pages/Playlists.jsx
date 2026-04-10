@@ -11,6 +11,7 @@ export default function Playlists() {
   const [detailType, setDetailType] = useState(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [intelligenceLoading, setIntelligenceLoading] = useState(false);
   const [detailSearch, setDetailSearch] = useState('');
   const location = useLocation();
 
@@ -88,6 +89,46 @@ export default function Playlists() {
     const res = await api.get(`/api/playlists/${plId}`);
     if (detail?.id === plId) setDetail(res.data);
     setLocalPlaylists((prev) => prev.map((p) => (p.id === plId ? res.data : p)));
+  };
+
+  const toNeteaseTrackItem = (raw) => {
+    const track = raw?.songInfo || raw?.songData || raw?.track || raw;
+    return {
+      id: track?.id,
+      name: track?.name,
+      artist: track?.ar?.map((a) => a.name) || track?.artists?.map((a) => a.name) || [],
+      pic_id: track?.al?.pic_str || track?.al?.pic || track?.al?.picUrl || '',
+      source: 'netease',
+    };
+  };
+
+  const playIntelligenceList = async () => {
+    if (!detail?.id || detailType !== 'netease') return;
+    const tracks = detail.tracks || [];
+    const seed = tracks[0]?.track || tracks[0];
+    if (!seed?.id) return;
+
+    setIntelligenceLoading(true);
+    try {
+      const res = await api.get('/api/netease/intelligence/list', {
+        params: { pid: detail.id, id: seed.id, count: 50 },
+      });
+      const listRaw = res.data?.data || res.data?.songs || [];
+      const list = (Array.isArray(listRaw) ? listRaw : []).map(toNeteaseTrackItem).filter((t) => t.id);
+      if (list.length) {
+        playList(list);
+        closeDetail();
+        return;
+      }
+
+      const fallback = tracks.map(toNeteaseTrackItem).filter((t) => t.id);
+      if (fallback.length) {
+        playList(fallback);
+        closeDetail();
+      }
+    } finally {
+      setIntelligenceLoading(false);
+    }
   };
 
   return (
@@ -231,6 +272,16 @@ export default function Playlists() {
                     className="btn-primary py-1 text-sm"
                   >
                     全部播放
+                  </button>
+                )}
+                {detailType === 'netease' && detail.tracks?.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={playIntelligenceList}
+                    disabled={intelligenceLoading}
+                    className="btn-secondary py-1 text-sm disabled:opacity-50"
+                  >
+                    {intelligenceLoading ? '心动模式加载中...' : '心动模式'}
                   </button>
                 )}
                 <button type="button" onClick={closeDetail} className="btn-secondary py-1 text-sm">关闭</button>
